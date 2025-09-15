@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberSim OS | CyberSafe Desktop Simulator</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        html,body { height:100%; }
+        body { background: linear-gradient(135deg,#0f2027,#203a43,#2c5364); color:#fff; overflow:hidden; }
+
+        /* Welcome / Boot */
+        .welcome-screen {
+            position: fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:3000; background: linear-gradient(180deg, rgba(0,0,0,0.5), rgba(0,0,0,0.65));
+        }
+        .welcome-card { width:900px; max-width:92%; background: rgba(10,10,10,0.9); border:2px solid #00ff00; border-radius:12px; padding:28px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.7); }
+        .welcome-title { font-size:48px; color:#0afb0a; font-weight:800; margin-bottom:8px; }
+        .welcome-tag { font-size:16px; color:#bfeeff; margin-bottom:18px; }
+        .welcome-actions { display:flex; gap:12px; justify-content:center; margin-top:18px; }
+        .btn { padding:10px 16px; border-radius:8px; border:none; cursor:pointer; background: linear-gradient(180deg,#2b7be9,#144f9e); color:white; font-weight:600; }
+        .btn-ghost { background:transparent; border:1px solid rgba(255,255,255,0.12); }
+        .small { padding:8px 12px; }
+
+        /* Login modal (after welcome) */
+        .login-modal { position: fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:3100; }
+        .login-box { width:420px; max-width:90%; background: rgba(6,6,6,0.96); border:2px solid #00ff00; border-radius:10px; padding:18px; text-align:left; }
+        .login-box h2 { color:#0afb0a; margin-bottom:6px; }
+        .login-row { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
+        .input { padding:10px; border-radius:6px; border:1px solid #333; background:#111; color:#fff; }
+        .muted { color:#a7e7a7; font-size:13px; }
+
+        /* Desktop layout (hidden until boot complete) */
+        .desktop { display:none; height:100vh; padding:20px; grid-template-columns:1fr 420px; gap:20px; position:relative; }
+        .desktop-icons { position:absolute; top:20px; left:20px; }
+        .desktop-icon { width:70px; text-align:center; margin-bottom:18px; cursor:pointer; transition:all 0.18s; }
+        .desktop-icon:hover { transform:translateY(-4px) scale(1.06); }
+        .desktop-icon img { width:40px; height:40px; margin-bottom:6px; }
+        .desktop-icon span { font-size:12px; color:white; text-shadow:1px 1px 2px black; }
+
+        .taskbar { position:fixed; bottom:0; left:0; right:0; height:44px; background-color:rgba(20,20,20,0.95); display:flex; align-items:center; padding:0 10px; border-top:1px solid #00ff00; z-index:1000; }
+        .start-button { padding:0 15px; height:34px; background:linear-gradient(to bottom,#0055c5,#003d87); border:1px solid #000; border-radius:6px; color:white; display:flex; align-items:center; cursor:pointer; margin-right:10px; }
+        .taskbar-apps { display:flex; flex:1; gap:8px; }
+        .taskbar-app { padding:0 12px; height:32px; background-color:rgba(50,50,50,0.8); border:1px solid #333; border-radius:6px; color:white; display:flex; align-items:center; cursor:pointer; font-size:13px; }
+        .clock { padding:0 10px; color:white; font-size:12px; }
+
+        .window { background-color:rgba(40,40,40,0.98); border:1px solid #00ff00; border-radius:8px; overflow:hidden; box-shadow:0 8px 40px rgba(0,0,0,0.6); display:flex; flex-direction:column; min-height:220px; min-width:320px; position:absolute; }
+        .window.hidden { display:none; }
+        .window-header { background:linear-gradient(to bottom,#2c2c2c,#1c1c1c); padding:10px 12px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #333; cursor:move; user-select:none; }
+        .window-title { font-weight:700; color:#0afb0a; }
+        .window-controls { display:flex; gap:8px; align-items:center; }
+        .window-control { width:14px; height:14px; border-radius:50%; cursor:pointer; }
+        .close { background-color:#ff5f56; }
+        .minimize { background-color:#ffbd2e; }
+        .maximize { background-color:#27c93f; }
+        .window-body { flex:1; padding:12px; overflow:auto; }
+
+        .terminal { background-color:rgba(0,0,0,0.92); height:100%; border-radius:4px; padding:12px; display:flex; flex-direction:column; color:#0afb0a; font-family:'Courier New', monospace; }
+        .terminal-output { flex:1; overflow-y:auto; margin-bottom:8px; }
+        .command-line { display:flex; align-items:center; gap:8px; }
+        .prompt { color:#0afb0a; font-weight:700; }
+        #command-input { background:transparent; border:none; color:#0afb0a; font-family:'Courier New', monospace; font-size:15px; width:100%; outline:none; }
+
+        .sidebar { display:none; } /* removed from desktop, moved into Start Menu */
+
+        .modal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background-color:rgba(0,0,0,0.7); z-index:2000; align-items:center; justify-content:center; }
+        .modal-content { background-color:rgba(30,30,30,0.98); border:2px solid #00ff00; border-radius:8px; width:86%; max-width:980px; max-height:86%; overflow-y:auto; padding:18px; box-shadow:0 0 30px rgba(0,255,0,0.28); }
+        .modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding-bottom:8px; border-bottom:1px solid #333; }
+        .modal-title { font-size:22px; color:#0afb0a; }
+        .close-modal { background:none; border:none; color:white; font-size:26px; cursor:pointer; }
+        .cmd-list { list-style:none; padding:0; margin:0; }
+        .cmd-item { padding:8px 10px; border-radius:8px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; background:rgba(255,255,255,0.02); }
+        .cmd-item button { margin-left:8px; }
+
+        /* Start menu new layout */
+        .start-menu { display:none; position:fixed; bottom:52px; left:12px; width:360px; background-color:rgba(40,40,40,0.98); border:1px solid #00ff00; border-radius:8px; z-index:1500; box-shadow:0 8px 30px rgba(0,0,0,0.7); }
+        .start-menu-header { background:linear-gradient(to right,#0055c5,#003d87); padding:12px; font-weight:bold; color:white; border-radius:6px 6px 0 0; }
+        .start-menu-items { padding:10px; max-height:320px; overflow:auto; }
+        .start-menu-section { margin-bottom:10px; }
+        .start-section-title { color:#9fffb0; font-weight:700; margin-bottom:6px; }
+        .start-tools { display:flex; gap:8px; flex-wrap:wrap; }
+        .tool-card { background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:8px; cursor:pointer; }
+
+        /* File Explorer & Tools windows small styles */
+        .file-tree { background:rgba(0,0,0,0.8); padding:10px; border-radius:6px; height:300px; overflow:auto; }
+        .file-item { padding:6px 8px; border-radius:4px; cursor:pointer; display:flex; justify-content:space-between; }
+        .file-item:hover { background:rgba(255,255,255,0.03); }
+        .toolbar { display:flex; gap:8px; margin-bottom:8px; }
+        .log { background:rgba(0,0,0,0.85); padding:8px; border-radius:6px; height:160px; overflow:auto; font-family:monospace; }
+
+        /* Responsive tweaks */
+        @media (max-width:900px){ .welcome-title{font-size:34px;} .welcome-card{padding:18px;} }
+    </style>
+</head>
+<body>
+
+    <!-- Welcome Screen (Website Intro) -->
+    <div class="welcome-screen" id="welcome-screen">
+        <div class="welcome-card">
+            <div style="display:flex;align-items:center;gap:14px;justify-content:center;">
+                <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCAyNDAgMjQwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxjaXJjbGUgY3g9IjEyMCIgY3k9IjEyMCIgcj0iMTEwIiBmaWxsPSIjMDhmMjEwIiBvcGFjaXR5PSIuOCIvPjx0ZXh0IHg9IjEyMCIgeT0iMTI0IiBmb250LXNpemU9IjMyIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZmZmIj5DPC90ZXh0Pjwvc3ZnPg==" alt="logo" style="width:64px;height:64px;">
+                <div style="text-align:left;">
+                    <div class="welcome-title">CyberSim OS</div>
+                    <div class="welcome-tag">Learn cybersecurity tools safely in a simulated OS environment</div>
+                </div>
+            </div>
+
+            <div style="margin-top:12px;text-align:left;">
+                <div class="muted">Recommended: use simulation for learning only. All outputs are fake and safe.</div>
+            </div>
+
+            <div class="welcome-actions">
+                <button class="btn" id="enter-btn">Enter CyberSim OS</button>
+                <button class="btn btn-ghost" id="learn-btn">About the Simulator</button>
+                <button class="btn btn-ghost small" id="skip-login">Skip Login (Quick Start)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login modal (real OS login after welcome) -->
+    <div class="login-modal" id="login-modal">
+        <div class="login-box">
+            <h2>Sign In to CyberSim OS</h2>
+            <div class="login-row">
+                <label class="muted">Username</label>
+                <input class="input" id="login-username" value="root">
+            </div>
+            <div class="login-row">
+                <label class="muted">Password</label>
+                <input type="password" class="input" id="login-password" placeholder="Enter password">
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+                <button class="btn btn-ghost" id="login-cancel">Cancel</button>
+                <button class="btn" id="login-submit">Boot</button>
+            </div>
+            <div style="margin-top:8px;color:#a7e7a7;font-size:13px;">Tip: This is a simulated login. You can enter any password; correct or not shows a short animation.</div>
+        </div>
+    </div>
+
+    <!-- Desktop (hidden until boot) -->
+    <div class="desktop" id="desktop">
+        <div class="desktop-icons">
+            <div class="desktop-icon" onclick="openApp('terminal')">
+                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBmaWxsPSIjMGJmMTBhIiBkPSJNMTYgMTI4aDQ4MHYyNTZIMTZWMTI4em02NCA2NGgtMzJ2NjRoMzJ2LTY0em02NCAwaC0zMnY2NGgzMnYtNjR6bTY0IDBoLTMydjY0aDMydi02NHptNjQgMGgtMzJ2NjRoMzJ2LTY0eiIvPjxwYXRoIGZpbGw9IiMwYmYxMGEiIGQ9Ik0wIDk2djMyMGg1MTJWOTZIMHptNDQ4IDI4OEg2NFYxMjhoMzg0djI1NnoiLz48L3N2Zz4=" alt="Terminal">
+                <span>Terminal</span>
+            </div>
+            <div class="desktop-icon" onclick="openApp('explorer')">
+                <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBmaWxsPSIjMGJmMTBhIiBkPSJNNDQ4IDk2SDY0Yy0zNS4zIDAtNjQgMjguNy02NCA2NHYxOTJjMCAzNS4zIDI4LjcgNjQgNjQgNjRoMzg0YzM1LjMgMCA2NC0yOC43IDY0LTY0VjE2MGMwLTM1LjMtMjguNy02NC02NC02NHptMTYgMjU2YzAgOC44LTcuMiAxNi0xNiAxNkg2NGMtOC44IDAtMTYtNy4yLTE2LTE2VjE2MGMwLTguOCA3LjItMTYgMTYtMTZoMzg0YzguOCAwIDE2IDcuMiAxNiAxNnYxOTJ6Ii8+PHBhdGggZmlsbD0iIzBiZjEwYSIgZD0iTTM1MiAyNDBIMTYwYy04LjggMC0xNiA3LjItMTYgMTZzNy4yIDE2IDE2IDE2aDE5MmM4LjggMCAxNi03LjIgMTYtMTZzLTcuMi0xNi0xNi0xNnptLTk2IDY0SDE2MGMtOC44IDAtMTYgNy4yLTE2IDE2czcuMiAxNiAxNiAxNmg5NmM4LjggMCAxNi03LjIgMTYtMTZzLTcuMi0xNi0xNi0xNnoiLz48L3N2Zz4=" alt="File Explorer">
+                <span>File Explorer</span>
+            </div>
+            <div class="desktop-icon" onclick="openApp('tools')">
+                <img src="https://www.reuters.com/resizer/v2/PQCH6LNQJRNWRPZBNG6QBMIJMI.jpg?auth=9f300df0012cad2fee7d238d47cd0a94cd3dc5b45ee2ac42dc6ed33d504c44d1&width=960&quality=80" alt="Hacking Tools">
+                <span>Hacking Tools</span>
+            </div>
+        </div>
+
+        <!-- Terminal Window -->
+        <div class="window" id="terminal-window" style="z-index:50; left:140px; top:80px; width:58%; min-width:420px;">
+            <div class="window-header">
+                <div class="window-title">CyberSafe Terminal v3.0</div>
+                <div class="window-controls">
+                    <div class="window-control minimize" title="Minimize" data-action="minimize"></div>
+                    <div class="window-control maximize" title="Maximize/Restore" data-action="maximize"></div>
+                    <div class="window-control close" title="Close" data-action="close"></div>
+                </div>
+            </div>
+            <div class="window-body">
+                <div class="terminal">
+                    <div class="terminal-output" id="terminal-output">
+                        <div class="output success">Welcome to CyberSim OS - CyberSafe Desktop v3.0 (Extended)</div>
+                        <div class="output info">This environment simulates cybersecurity tools for learning purposes only.</div>
+                        <div class="output warning">WARNING: All commands are simulated. Do not use this to plan or execute real attacks.</div>
+                        <div class="output">Type <span class="success">'help'</span> to see available commands.</div>
+                        <div class="output">Type <span class="success">'clear'</span> to clear the terminal.</div>
+                        <div class="output"><br></div>
+                        <div class="output">root@cybersimulator:~# <span class="blink">_</span></div>
+                    </div>
+                    <div class="command-line">
+                        <span class="prompt">root@cybersimulator:~#</span>
+                        <input type="text" id="command-input" autofocus>
+                        <button class="btn" id="run-btn">Run</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Explorer Window -->
+        <div class="window explorer hidden" id="explorer-window" style="z-index:40; left:60px; top:120px; display:none;">
+            <div class="window-header"><div class="window-title">File Explorer</div><div class="window-controls"><div class="window-control minimize" data-action="minimize"></div><div class="window-control maximize" data-action="maximize"></div><div class="window-control close" data-action="close"></div></div></div>
+            <div class="window-body">
+                <div class="toolbar"><button class="btn" onclick="explorerNewFile()">New File</button><button class="btn" onclick="explorerNewFolder()">New Folder</button><button class="btn" onclick="explorerRefresh()">Refresh</button></div>
+                <div class="file-tree" id="file-tree"></div>
+                <div style="margin-top:10px"><div class="log" id="explorer-log">Explorer ready.</div></div>
+            </div>
+        </div>
+
+        <!-- Tools Window -->
+        <div class="window tools hidden" id="tools-window" style="z-index:45; left:620px; top:120px; display:none;">
+            <div class="window-header"><div class="window-title">Hacking Tools (Simulated)</div><div class="window-controls"><div class="window-control minimize" data-action="minimize"></div><div class="window-control maximize" data-action="maximize"></div><div class="window-control close" data-action="close"></div></div></div>
+            <div class="window-body">
+                <div class="app-card-title" style="margin-bottom:10px;margin-top:2px;color:#0afb0a;">Quick Tool Runner</div>
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <select id="tool-select" style="flex:1;padding:8px;border-radius:6px;background:#111;color:#fff;border:1px solid #333;">
+                        <option value="nmap">nmap</option>
+                        <option value="sqlmap">sqlmap</option>
+                        <option value="hydra">hydra</option>
+                        <option value="metasploit">metasploit</option>
+                        <option value="aircrack">aircrack-ng</option>
+                        <option value="john">john</option>
+                        <option value="wireshark">wireshark</option>
+                        <option value="burpsuite">burpsuite</option>
+                    </select>
+                    <input id="tool-target" placeholder="target (e.g., 192.168.1.10 or example.com)" style="flex:2;padding:8px;border-radius:6px;background:#111;color:#fff;border:1px solid #333;">
+                    <button class="btn" onclick="runToolFromPanel()">Run</button>
+                </div>
+                <div class="log" id="tools-log">Tool output will appear here.</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Taskbar -->
+    <div class="taskbar">
+        <div class="start-button" onclick="toggleStartMenu()">Start</div>
+        <div class="taskbar-apps">
+            <div class="taskbar-app" onclick="openApp('terminal')">Terminal</div>
+            <div class="taskbar-app" onclick="openApp('explorer')">File Explorer</div>
+            <div class="taskbar-app" onclick="openApp('tools')">Tools</div>
+        </div>
+        <div class="clock" id="clock">15:30:45</div>
+    </div>
+
+    <!-- Start Menu (now contains Common & Advanced tools) -->
+    <div class="start-menu" id="start-menu">
+        <div class="start-menu-header">CyberSim OS</div>
+        <div class="start-menu-items">
+            <div class="start-menu-section">
+                <div class="start-section-title">Quick Actions</div>
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <div class="tool-card" onclick="openApp('terminal')">Open Terminal</div>
+                    <div class="tool-card" onclick="openApp('explorer')">File Explorer</div>
+                    <div class="tool-card" onclick="openApp('tools')">Tools</div>
+                </div>
+            </div>
+
+            <div class="start-menu-section">
+                <div class="start-section-title">Tools</div>
+                <div class="start-tools" id="start-tools">
+                    <!-- will be filled by JS -->
+                </div>
+            </div>
+
+            <div class="start-menu-section">
+                <div class="start-section-title">About</div>
+                <div style="font-size:13px;color:#bfeeff">CyberSim OS — safe simulated environment to learn cybersecurity tools.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Explanation Modal -->
+    <div class="modal" id="explanation-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="modal-title">Command Explanation</div>
+                <button class="close-modal" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="command-explanation" id="command-explanation"></div>
+        </div>
+    </div>
+
+    <script>
+        // Explanations (same as before, shortened keys)
+        const explanations = {
+            help:{title:'help',content:`<h3>help</h3><p>Show commands. Try <pre>help nmap</pre></p>`},
+            nmap:{title:'nmap',content:`<h3>Nmap</h3><p>Simulated scan output to teach interpretation.</p>`},
+            sqlmap:{title:'sqlmap',content:`<h3>sqlmap</h3><p>Simulated SQL injection testing (educational).</p>`},
+            hydra:{title:'hydra',content:`<h3>hydra</h3><p>Simulated brute-force (ethical testing only).</p>`},
+            ping:{title:'ping',content:`<h3>ping</h3><p>Simulated ICMP replies.</p>`},
+            metasploit:{title:'metasploit',content:`<h3>Metasploit</h3><p>Simulated exploit & meterpreter output.</p>`},
+            aircrack:{title:'aircrack-ng',content:`<h3>aircrack-ng</h3><p>Simulated handshake capture & cracking.</p>`},
+            john:{title:'john',content:`<h3>John the Ripper</h3><p>Simulated hash cracking.</p>`},
+            wireshark:{title:'wireshark',content:`<h3>Wireshark</h3><p>Simulated packet summaries.</p>`},
+            burpsuite:{title:'burpsuite',content:`<h3>Burp Suite</h3><p>Simulated scanner alerts & proxy output.</p>`}
+        };
+
+        // DOM refs
+        const welcomeScreen = document.getElementById('welcome-screen');
+        const enterBtn = document.getElementById('enter-btn');
+        const learnBtn = document.getElementById('learn-btn');
+        const skipLoginBtn = document.getElementById('skip-login');
+        const loginModal = document.getElementById('login-modal');
+        const loginSubmit = document.getElementById('login-submit');
+        const loginCancel = document.getElementById('login-cancel');
+        const desktop = document.getElementById('desktop');
+        const startMenu = document.getElementById('start-menu');
+        const startTools = document.getElementById('start-tools');
+
+        // Terminal refs
+        const terminalOutput = document.getElementById('terminal-output');
+        const commandInput = document.getElementById('command-input');
+        const runBtn = document.getElementById('run-btn');
+        const clockEl = document.getElementById('clock');
+
+        // Windows
+        const explorerWindow = document.getElementById('explorer-window');
+        const toolsWindow = document.getElementById('tools-window');
+        const terminalWindow = document.getElementById('terminal-window');
+
+        // Simulated file system
+        const fileSystem = { 'Home': { 'readme.txt':'Welcome to CyberSim OS! This is a simulated file.' }, 'Downloads': { 'sample.zip':'<binary>' } };
+
+        function bootToLogin() {
+            welcomeScreen.style.display='none';
+            loginModal.style.display='flex';
+        }
+        function bootToDesktop() {
+            loginModal.style.display='none';
+            desktop.style.display='grid';
+            // small animation: fade in terminal
+            terminalWindow.style.opacity=0; terminalWindow.style.transition='opacity .6s'; setTimeout(()=>terminalWindow.style.opacity=1,40);
+        }
+
+        // Welcome actions
+        enterBtn.addEventListener('click', ()=>{ bootToLogin(); });
+        skipLoginBtn.addEventListener('click', ()=>{ welcomeScreen.style.display='none'; desktop.style.display='grid'; });
+        learnBtn.addEventListener('click', ()=>{ alert('CyberSim OS is a simulated environment to learn cybersecurity tools safely. All outputs are simulated and safe.'); });
+
+        loginCancel.addEventListener('click', ()=>{ welcomeScreen.style.display='flex'; loginModal.style.display='none'; });
+        loginSubmit.addEventListener('click', ()=>{ // fake check + bootstrap
+            loginSubmit.textContent='Booting...'; loginSubmit.disabled=true;
+            setTimeout(()=>{ loginSubmit.textContent='Boot'; loginSubmit.disabled=false; bootToDesktop(); }, 900);
+        });
+
+        // Start menu
+        function toggleStartMenu(){ startMenu.style.display = startMenu.style.display==='block' ? 'none':'block'; }
+        window.toggleStartMenu = toggleStartMenu;
+
+        // Populate tools in start menu (Common & Advanced groups)
+        const common = ['help','nmap','sqlmap','hydra','ping'];
+        const advanced = ['metasploit','aircrack','john','wireshark','burpsuite'];
+        function populateStartTools(){ startTools.innerHTML='';
+            const addCard = (name,group)=>{
+                const el = document.createElement('div'); el.className='tool-card'; el.textContent = name; el.onclick = ()=>{ if(group==='common') runCommand(name); else openToolInfo(name); };
+                startTools.appendChild(el);
+            };
+            const h1 = document.createElement('div'); h1.style.width='100%'; h1.style.fontWeight='700'; h1.style.color='#9fffb0'; h1.style.marginBottom='6px'; h1.textContent='Common'; startTools.appendChild(h1);
+            common.forEach(c=>addCard(c,'common'));
+            const h2 = document.createElement('div'); h2.style.width='100%'; h2.style.fontWeight='700'; h2.style.color='#9fffb0'; h2.style.marginTop='8px'; h2.textContent='Advanced'; startTools.appendChild(h2);
+            advanced.forEach(a=>addCard(a,'advanced'));
+        }
+
+        function openToolInfo(name){ // opens explanation modal
+            const key = name.toLowerCase();
+            document.getElementById('modal-title').textContent = explanations[key]?.title || name;
+            document.getElementById('command-explanation').innerHTML = explanations[key]?.content || '<p>No info available.</p>';
+            document.getElementById('explanation-modal').style.display='flex';
+        }
+        function closeModal(){ document.getElementById('explanation-modal').style.display='none'; }
+        window.showExplanation = openToolInfo; window.closeModal = closeModal;
+
+        // Open/close app windows
+        function openApp(name){ toggleStartMenu(); if(name==='terminal'){ terminalWindow.style.display='block'; terminalWindow.classList.remove('hidden'); bringToFront(terminalWindow); commandInput.focus(); flashOutput(`<div class="output info">Terminal opened.</div>`); }
+            else if(name==='explorer'){ explorerWindow.style.display='flex'; explorerWindow.classList.remove('hidden'); renderFileTree(); bringToFront(explorerWindow); flashOutput(`<div class="output info">File Explorer opened.</div>`); }
+            else if(name==='tools'){ toolsWindow.style.display='flex'; toolsWindow.classList.remove('hidden'); bringToFront(toolsWindow); flashOutput(`<div class="output info">Hacking Tools opened.</div>`); }
+        }
+        window.openApp = openApp; window.closeApp = function(n){ if(n==='terminal') terminalWindow.style.display='none'; else if(n==='explorer') explorerWindow.style.display='none'; else if(n==='tools') toolsWindow.style.display='none'; };
+
+        function bringToFront(el){ const wins = document.querySelectorAll('.window'); let max=50; wins.forEach(w=>{ const z=parseInt(w.style.zIndex)||0; if(z>max) max=z; }); el.style.zIndex = max+1; }
+
+        // File explorer
+        function renderFileTree(){ const tree = document.getElementById('file-tree'); tree.innerHTML=''; for(const folder in fileSystem){ const foldEl=document.createElement('div'); foldEl.className='file-item'; foldEl.innerHTML = `<strong>${folder}</strong><span>Folder</span>`; foldEl.onclick=()=>showFolder(folder); tree.appendChild(foldEl); const contents = fileSystem[folder]; for(const f in contents){ const isObj = typeof contents[f] === 'object'; const fileEl=document.createElement('div'); fileEl.className='file-item'; fileEl.style.paddingLeft='18px'; fileEl.innerHTML = `${f} <span>${isObj?'Folder':'File'}</span>`; fileEl.onclick=(e)=>{ e.stopPropagation(); openFile(folder,f); }; tree.appendChild(fileEl); } } }
+        function showFolder(name){ document.getElementById('explorer-log').textContent = `Opened folder: ${name}`; }
+        function openFile(folder,file){ const log = document.getElementById('explorer-log'); const content = fileSystem[folder][file]; if(typeof content==='object'){ log.textContent = `Opened folder ${file}`;} else { log.textContent = `Opened file: ${file} — ${String(content).slice(0,200)}`;} }
+        function explorerNewFile(){ const name='newfile_'+Math.floor(Math.random()*9000)+'.txt'; fileSystem['Home'][name]='New file content'; renderFileTree(); document.getElementById('explorer-log').textContent=`Created file ${name}`; }
+        function explorerNewFolder(){ const name='NewFolder_'+Math.floor(Math.random()*9000); fileSystem[name] = {}; renderFileTree(); document.getElementById('explorer-log').textContent=`Created folder ${name}`; }
+        function explorerRefresh(){ renderFileTree(); document.getElementById('explorer-log').textContent='Refreshed.'; }
+
+        // Window controls
+        document.querySelectorAll('.window .window-control').forEach(ctrl=>{ ctrl.addEventListener('click', function(e){ const action = ctrl.getAttribute('data-action'); const win = ctrl.closest('.window'); if(action==='minimize'){ win.style.display='none'; } else if(action==='close'){ win.style.display='none'; win.classList.add('hidden'); } else if(action==='maximize'){ toggleMaximize(win); } }); });
+        function toggleMaximize(win){ if(!win.dataset.normal){ win.dataset.normal = JSON.stringify({ left: win.style.left, top: win.style.top, width: win.style.width, height: win.style.height }); win.style.left='20px'; win.style.top='20px'; win.style.width = (window.innerWidth - 80) + 'px'; win.style.height = (window.innerHeight - 120) + 'px'; } else { const r = JSON.parse(win.dataset.normal); win.style.left = r.left; win.style.top = r.top; win.style.width = r.width; win.style.height = r.height; delete win.dataset.normal; } bringToFront(win); }
+
+        // Terminal utilities
+        function flashOutput(html){ const wrapper = document.createElement('div'); wrapper.className='output'; wrapper.innerHTML = html; terminalOutput.appendChild(wrapper); terminalOutput.scrollTop = terminalOutput.scrollHeight; }
+
+        // Simulated tools (same as previous file but shortened for brevity) - these produce realistic, safe outputs
+        function simulateSqlmap(target){ flashOutput(`<div class="output info">sqlmap running on ${escapeHtml(target)} (simulated)...</div>`); setTimeout(()=>{ flashOutput(`<div class="output"><pre>Parameter: id (GET)\nType: boolean-based blind\nDBMS: MySQL\nDatabases: information_schema, users_db, testdb</pre></div>`); },900); }
+        function simulateHydra(target){ flashOutput(`<div class="output info">hydra against ${escapeHtml(target)} (simulated)...</div>`); setTimeout(()=>{ flashOutput(`<div class="output"><pre>[22][ssh] host: ${escapeHtml(target)} login: admin password: P@ssw0rd123</pre></div>`); },1100); }
+        function simulateMetasploit(target){ flashOutput(`<div class="output info">metasploit module (simulated) against ${escapeHtml(target)}...</div>`); setTimeout(()=>{ flashOutput(`<div class="output"><pre>[+] Meterpreter session opened from ${escapeHtml(target)}\nmeterpreter> sysinfo\nOS: Linux victim</pre></div>`); },1200); }
+        function simulateAircrack(iface){ flashOutput(`<div class="output info">aircrack-ng (simulated) on ${escapeHtml(iface)}...</div>`); setTimeout(()=>{ flashOutput(`<div class="output"><pre>[+] KEY FOUND: password123</pre></div>`); },1200); }
+        function simulateJohn(hashDesc){ flashOutput(`<div class="output info">john (simulated) cracking ${escapeHtml(hashDesc)}...</div>`); setTimeout(()=>{ flashOutput(`<div class="output"><pre>1 password cracked: password123</pre></div>`); },800); }
+        function simulateWireshark(target){ flashOutput(`<div class="output info">wireshark (simulated) summarizing ${escapeHtml(target)}...</div>`); setTimeout(()=>{ flashOutput(`<div class="output"><pre>Top protocols: TLS, HTTP/2\nSample packet: Src ${escapeHtml(target)} -> Dst 10.0.0.5</pre></div>`); },900); }
+        function simulateBurp(target){ flashOutput(`<div class="output info">burpsuite scanning ${escapeHtml(target)} (simulated)...</div>`); setTimeout(()=>{ flashOutput(`<div class="output"><pre>[ALERT] Reflected XSS found on /search?q= (High)</pre></div>`); },1000); }
+
+        // General run command
+        function escapeHtml(unsafe){ return String(unsafe).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+        function runCommand(raw){ const text = String(raw||'').trim(); if(!text) return; flashOutput(`<div class="output info"><pre>root@cybersimulator:~# ${escapeHtml(text)}</pre></div>`); const parts = text.split(' ').filter(Boolean); const cmd = parts[0].toLowerCase(); const args = parts.slice(1);
+            if(cmd==='help'){ handleHelp(args); }
+            else if(cmd==='clear'){ terminalOutput.innerHTML=''; }
+            else if(cmd==='nmap'){ handleNmap(args[0]||'127.0.0.1'); }
+            else if(cmd==='ping'){ handlePing(args[0]||'8.8.8.8'); }
+            else if(cmd==='sqlmap'){ simulateSqlmap(args[0]||'http://example.com/vuln.php?id=1'); }
+            else if(cmd==='hydra'){ simulateHydra(args[0]||'192.168.1.5'); }
+            else if(cmd==='metasploit' || cmd==='msfconsole'){ simulateMetasploit(args[0]||'192.168.1.10'); }
+            else if(cmd==='aircrack-ng' || cmd==='aircrack'){ simulateAircrack(args[0]||'wlan0'); }
+            else if(cmd==='john'){ simulateJohn(args.join(' ')||'hashes.txt'); }
+            else if(cmd==='wireshark'){ simulateWireshark(args[0]||'192.168.1.10'); }
+            else if(cmd==='burpsuite' || cmd==='burp'){ simulateBurp(args[0]||'http://example.com'); }
+            else { flashOutput(`<div class="output error">Command not found: ${escapeHtml(cmd)}. Type 'help' to list commands.</div>`); }
+        }
+
+        function handleHelp(args){ if(!args.length){ const list = Object.keys(explanations).map(k=>`<li>${k} - ${escapeHtml(explanations[k].title||'')}</li>`).join(''); flashOutput(`<div class="output info"><strong>Available commands:</strong><ul>${list}</ul></div>`);} else { const k=args[0].toLowerCase(); if(explanations[k]) flashOutput(`<div class="output info">${explanations[k].content}</div>`); else flashOutput(`<div class="output error">No help available for ${escapeHtml(k)}</div>`); } }
+
+        function handleNmap(target){ flashOutput(`<div class="output info">Starting Nmap scan on ${escapeHtml(target)} (simulated)...</div>`); setTimeout(()=>{ const simulated = `\n<pre>Starting Nmap 7.80 ( https://nmap.org ) at ${new Date().toLocaleString()}\nNmap scan report for ${escapeHtml(target)}\nHost is up (0.0020s latency).\nNot shown: 996 filtered ports\nPORT     STATE SERVICE\n22/tcp   open  ssh\n80/tcp   open  http\n139/tcp  open  netbios-ssn\n445/tcp  open  microsoft-ds\nNmap done: 1 IP address (1 host up) scanned in 0.34 seconds\n</pre>`; flashOutput(`<div class="output">${simulated}</div>`); },900); }
+        function handlePing(target){ const count=4; flashOutput(`<div class="output info">Pinging ${escapeHtml(target)} with ${count} packets (simulated)...</div>`); const replies=[]; for(let i=0;i<count;i++){ const latency=(Math.random()*40+8).toFixed(2); replies.push(`Reply from ${target}: bytes=32 time=${latency}ms TTL=54`); } setTimeout(()=>{ const times=replies.map(r=>parseFloat(r.match(/time=(\d+(\.\d+)?)/)[1])); flashOutput(`<div class="output"><pre>${replies.join('\n')}\n\nPing statistics for ${escapeHtml(target)}:\n Packets: Sent = ${count}, Received = ${count}, Lost = 0 (0% loss),\nApproximate round trip times in milli-seconds:\n Minimum = ${Math.min(...times).toFixed(2)}ms, Maximum = ${Math.max(...times).toFixed(2)}ms, Average = ${(times.reduce((a,b)=>a+b,0)/times.length).toFixed(2)}ms</pre></div>`); },700); }
+
+        // Tools panel runner
+        function runToolFromPanel(){ const tool=document.getElementById('tool-select').value; const target=document.getElementById('tool-target').value||'127.0.0.1'; document.getElementById('tools-log').textContent=`Running ${tool} against ${target} (simulated)...`; setTimeout(()=>{ if(tool==='nmap') handleNmap(target); else if(tool==='sqlmap') simulateSqlmap(target); else if(tool==='hydra') simulateHydra(target); else if(tool==='metasploit') simulateMetasploit(target); else if(tool==='aircrack') simulateAircrack(target); else if(tool==='john') simulateJohn(target); else if(tool==='wireshark') simulateWireshark(target); else if(tool==='burpsuite') simulateBurp(target); document.getElementById('tools-log').textContent=`${tool} finished (simulated). Check terminal for output.`; },500); }
+
+        // Input handling
+        runBtn.addEventListener('click', ()=>{ runCommand(commandInput.value); commandInput.value=''; });
+        commandInput.addEventListener('keydown', function(e){ if(e.key==='Enter'){ runCommand(commandInput.value); commandInput.value=''; } else if(e.key==='c' && (e.ctrlKey||e.metaKey)){ flashOutput(`<div class="output warning">^C</div>`); commandInput.value=''; } });
+
+        // Explanation modal close
+        document.getElementById('explanation-modal').addEventListener('click', function(e){ if(e.target === document.getElementById('explanation-modal')) closeModal(); });
+
+        // Clock
+        function updateClock(){ const now=new Date(); const hh=String(now.getHours()).padStart(2,'0'); const mm=String(now.getMinutes()).padStart(2,'0'); const ss=String(now.getSeconds()).padStart(2,'0'); clockEl.textContent=`${hh}:${mm}:${ss}`; }
+        updateClock(); setInterval(updateClock,1000);
+
+        // Make windows draggable (supports multiple windows)
+        (function makeDraggableAll(){ const windows = document.querySelectorAll('.window'); windows.forEach(w=>{ const header = w.querySelector('.window-header'); let isDown=false, offset={x:0,y:0}; header.addEventListener('mousedown',(e)=>{ isDown=true; bringToFront(w); const rect = w.getBoundingClientRect(); offset.x = e.clientX - rect.left; offset.y = e.clientY - rect.top; w.style.position='absolute'; w.style.transition='none'; }); document.addEventListener('mousemove',(e)=>{ if(!isDown) return; w.style.left = (e.clientX - offset.x) + 'px'; w.style.top = (e.clientY - offset.y) + 'px'; }); document.addEventListener('mouseup',()=>{ isDown=false; }); }); })();
+
+        // Init
+        populateStartTools(); renderFileTree(); commandInput.focus(); setTimeout(()=>flashOutput(`<div class="output info">Tip: open Start → Tools to run simulated commands or click the Tools desktop icon.</div>`),900);
+
+    </script>
+</body>
+</html>
