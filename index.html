@@ -87,6 +87,66 @@
         .toolbar { display:flex; gap:8px; margin-bottom:8px; }
         .log { background:rgba(0,0,0,0.85); padding:8px; border-radius:6px; height:160px; overflow:auto; font-family:monospace; }
 
+        /* CCTV Viewer specific styles */
+        .cctv-feed { 
+            background: #000; 
+            width: 100%; 
+            height: 100%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            position: relative;
+            overflow: hidden;
+        }
+        .cctv-feed::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(0,255,0,0.03) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(0,255,0,0.03) 1px, transparent 1px);
+            background-size: 20px 20px;
+            z-index: 1;
+            pointer-events: none;
+        }
+        .cctv-feed::after {
+            content: "SURVEILLANCE FEED ACTIVE";
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            color: #0afb0a;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            text-shadow: 0 0 5px #000;
+            z-index: 2;
+        }
+        .cctv-placeholder {
+            width: 100%;
+            height: 100%;
+            background: #111;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #0afb0a;
+            font-family: 'Courier New', monospace;
+            flex-direction: column;
+            text-align: center;
+        }
+        .cctv-placeholder .blink {
+            animation: blink 2s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .cctv-controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
         /* Responsive tweaks */
         @media (max-width:900px){ .welcome-title{font-size:34px;} .welcome-card{padding:18px;} }
     </style>
@@ -150,6 +210,10 @@
             <div class="desktop-icon" onclick="openApp('tools')">
                 <img src="https://www.reuters.com/resizer/v2/PQCH6LNQJRNWRPZBNG6QBMIJMI.jpg?auth=9f300df0012cad2fee7d238d47cd0a94cd3dc5b45ee2ac42dc6ed33d504c44d1&width=960&quality=80" alt="Hacking Tools">
                 <span>Hacking Tools</span>
+            </div>
+            <div class="desktop-icon" onclick="openApp('cctv')">
+                <img src="https://cdn-icons-png.flaticon.com/512/69/69524.png" alt="CCTV Viewer">
+                <span>CCTV Viewer</span>
             </div>
         </div>
 
@@ -216,6 +280,30 @@
             </div>
         </div>
 
+        <!-- CCTV Window -->
+        <div class="window hidden" id="cctv-window" style="z-index:45; left:200px; top:100px; width:520px; height:320px; display:none;">
+            <div class="window-header">
+                <div class="window-title">Surveillance Camera</div>
+                <div class="window-controls">
+                    <div class="window-control minimize" data-action="minimize"></div>
+                    <div class="window-control maximize" data-action="maximize"></div>
+                    <div class="window-control close" data-action="close"></div>
+                </div>
+            </div>
+            <div class="window-body">
+                <div class="cctv-feed">
+                    <div class="cctv-placeholder">
+                        <div style="margin-bottom: 10px;">SURVEILLANCE FEED OFFLINE</div>
+                        <div class="blink">CONNECTING TO CAMERA NETWORK...</div>
+                        <div class="cctv-controls">
+                            <button class="btn small" onclick="connectCCTV()">Connect</button>
+                            <button class="btn small btn-ghost" onclick="simulateCCTVError()">Simulate Error</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Taskbar -->
@@ -225,6 +313,7 @@
             <div class="taskbar-app" onclick="openApp('terminal')">Terminal</div>
             <div class="taskbar-app" onclick="openApp('explorer')">File Explorer</div>
             <div class="taskbar-app" onclick="openApp('tools')">Tools</div>
+            <div class="taskbar-app" onclick="openApp('cctv')">CCTV Viewer</div>
         </div>
         <div class="clock" id="clock">15:30:45</div>
     </div>
@@ -239,6 +328,7 @@
                     <div class="tool-card" onclick="openApp('terminal')">Open Terminal</div>
                     <div class="tool-card" onclick="openApp('explorer')">File Explorer</div>
                     <div class="tool-card" onclick="openApp('tools')">Tools</div>
+                    <div class="tool-card" onclick="openApp('cctv')">CCTV Viewer</div>
                 </div>
             </div>
 
@@ -279,7 +369,8 @@
             aircrack:{title:'aircrack-ng',content:`<h3>aircrack-ng</h3><p>Simulated handshake capture & cracking.</p>`},
             john:{title:'john',content:`<h3>John the Ripper</h3><p>Simulated hash cracking.</p>`},
             wireshark:{title:'wireshark',content:`<h3>Wireshark</h3><p>Simulated packet summaries.</p>`},
-            burpsuite:{title:'burpsuite',content:`<h3>Burp Suite</h3><p>Simulated scanner alerts & proxy output.</p>`}
+            burpsuite:{title:'burpsuite',content:`<h3>Burp Suite</h3><p>Simulated scanner alerts & proxy output.</p>`},
+            surveillance:{title:'surveillance',content:`<h3>Surveillance Tools</h3><p>Simulated CCTV and monitoring tools for learning purposes.</p>`}
         };
 
         // DOM refs
@@ -304,6 +395,7 @@
         const explorerWindow = document.getElementById('explorer-window');
         const toolsWindow = document.getElementById('tools-window');
         const terminalWindow = document.getElementById('terminal-window');
+        const cctvWindow = document.getElementById('cctv-window');
 
         // Simulated file system
         const fileSystem = { 'Home': { 'readme.txt':'Welcome to CyberSim OS! This is a simulated file.' }, 'Downloads': { 'sample.zip':'<binary>' } };
@@ -336,7 +428,7 @@
 
         // Populate tools in start menu (Common & Advanced groups)
         const common = ['help','nmap','sqlmap','hydra','ping'];
-        const advanced = ['metasploit','aircrack','john','wireshark','burpsuite'];
+        const advanced = ['metasploit','aircrack','john','wireshark','burpsuite','surveillance'];
         function populateStartTools(){ startTools.innerHTML='';
             const addCard = (name,group)=>{
                 const el = document.createElement('div'); el.className='tool-card'; el.textContent = name; el.onclick = ()=>{ if(group==='common') runCommand(name); else openToolInfo(name); };
@@ -358,16 +450,75 @@
         window.showExplanation = openToolInfo; window.closeModal = closeModal;
 
         // Open/close app windows
-        function openApp(name){ toggleStartMenu(); if(name==='terminal'){ terminalWindow.style.display='block'; terminalWindow.classList.remove('hidden'); bringToFront(terminalWindow); commandInput.focus(); flashOutput(`<div class="output info">Terminal opened.</div>`); }
-            else if(name==='explorer'){ explorerWindow.style.display='flex'; explorerWindow.classList.remove('hidden'); renderFileTree(); bringToFront(explorerWindow); flashOutput(`<div class="output info">File Explorer opened.</div>`); }
-            else if(name==='tools'){ toolsWindow.style.display='flex'; toolsWindow.classList.remove('hidden'); bringToFront(toolsWindow); flashOutput(`<div class="output info">Hacking Tools opened.</div>`); }
+        function openApp(name){ 
+            toggleStartMenu(); 
+            if(name==='terminal'){ 
+                terminalWindow.style.display='block'; 
+                terminalWindow.classList.remove('hidden'); 
+                bringToFront(terminalWindow); 
+                commandInput.focus(); 
+                flashOutput(`<div class="output info">Terminal opened.</div>`); 
+            }
+            else if(name==='explorer'){ 
+                explorerWindow.style.display='flex'; 
+                explorerWindow.classList.remove('hidden'); 
+                renderFileTree(); 
+                bringToFront(explorerWindow); 
+                flashOutput(`<div class="output info">File Explorer opened.</div>`); 
+            }
+            else if(name==='tools'){ 
+                toolsWindow.style.display='flex'; 
+                toolsWindow.classList.remove('hidden'); 
+                bringToFront(toolsWindow); 
+                flashOutput(`<div class="output info">Hacking Tools opened.</div>`); 
+            }
+            else if(name==='cctv'){ 
+                cctvWindow.style.display='flex'; 
+                cctvWindow.classList.remove('hidden'); 
+                bringToFront(cctvWindow); 
+                flashOutput(`<div class="output info">CCTV Viewer opened.</div>`); 
+            }
         }
-        window.openApp = openApp; window.closeApp = function(n){ if(n==='terminal') terminalWindow.style.display='none'; else if(n==='explorer') explorerWindow.style.display='none'; else if(n==='tools') toolsWindow.style.display='none'; };
+        window.openApp = openApp; 
+        window.closeApp = function(n){ 
+            if(n==='terminal') terminalWindow.style.display='none'; 
+            else if(n==='explorer') explorerWindow.style.display='none'; 
+            else if(n==='tools') toolsWindow.style.display='none'; 
+            else if(n==='cctv') cctvWindow.style.display='none'; 
+        };
 
-        function bringToFront(el){ const wins = document.querySelectorAll('.window'); let max=50; wins.forEach(w=>{ const z=parseInt(w.style.zIndex)||0; if(z>max) max=z; }); el.style.zIndex = max+1; }
+        function bringToFront(el){ 
+            const wins = document.querySelectorAll('.window'); 
+            let max=50; 
+            wins.forEach(w=>{ 
+                const z=parseInt(w.style.zIndex)||0; 
+                if(z>max) max=z; 
+            }); 
+            el.style.zIndex = max+1; 
+        }
 
         // File explorer
-        function renderFileTree(){ const tree = document.getElementById('file-tree'); tree.innerHTML=''; for(const folder in fileSystem){ const foldEl=document.createElement('div'); foldEl.className='file-item'; foldEl.innerHTML = `<strong>${folder}</strong><span>Folder</span>`; foldEl.onclick=()=>showFolder(folder); tree.appendChild(foldEl); const contents = fileSystem[folder]; for(const f in contents){ const isObj = typeof contents[f] === 'object'; const fileEl=document.createElement('div'); fileEl.className='file-item'; fileEl.style.paddingLeft='18px'; fileEl.innerHTML = `${f} <span>${isObj?'Folder':'File'}</span>`; fileEl.onclick=(e)=>{ e.stopPropagation(); openFile(folder,f); }; tree.appendChild(fileEl); } } }
+        function renderFileTree(){ 
+            const tree = document.getElementById('file-tree'); 
+            tree.innerHTML=''; 
+            for(const folder in fileSystem){ 
+                const foldEl=document.createElement('div'); 
+                foldEl.className='file-item'; 
+                foldEl.innerHTML = `<strong>${folder}</strong><span>Folder</span>`; 
+                foldEl.onclick=()=>showFolder(folder); 
+                tree.appendChild(foldEl); 
+                const contents = fileSystem[folder]; 
+                for(const f in contents){ 
+                    const isObj = typeof contents[f] === 'object'; 
+                    const fileEl=document.createElement('div'); 
+                    fileEl.className='file-item'; 
+                    fileEl.style.paddingLeft='18px'; 
+                    fileEl.innerHTML = `${f} <span>${isObj?'Folder':'File'}</span>`; 
+                    fileEl.onclick=(e)=>{ e.stopPropagation(); openFile(folder,f); }; 
+                    tree.appendChild(fileEl); 
+                } 
+            } 
+        }
         function showFolder(name){ document.getElementById('explorer-log').textContent = `Opened folder: ${name}`; }
         function openFile(folder,file){ const log = document.getElementById('explorer-log'); const content = fileSystem[folder][file]; if(typeof content==='object'){ log.textContent = `Opened folder ${file}`;} else { log.textContent = `Opened file: ${file} — ${String(content).slice(0,200)}`;} }
         function explorerNewFile(){ const name='newfile_'+Math.floor(Math.random()*9000)+'.txt'; fileSystem['Home'][name]='New file content'; renderFileTree(); document.getElementById('explorer-log').textContent=`Created file ${name}`; }
@@ -375,11 +526,46 @@
         function explorerRefresh(){ renderFileTree(); document.getElementById('explorer-log').textContent='Refreshed.'; }
 
         // Window controls
-        document.querySelectorAll('.window .window-control').forEach(ctrl=>{ ctrl.addEventListener('click', function(e){ const action = ctrl.getAttribute('data-action'); const win = ctrl.closest('.window'); if(action==='minimize'){ win.style.display='none'; } else if(action==='close'){ win.style.display='none'; win.classList.add('hidden'); } else if(action==='maximize'){ toggleMaximize(win); } }); });
-        function toggleMaximize(win){ if(!win.dataset.normal){ win.dataset.normal = JSON.stringify({ left: win.style.left, top: win.style.top, width: win.style.width, height: win.style.height }); win.style.left='20px'; win.style.top='20px'; win.style.width = (window.innerWidth - 80) + 'px'; win.style.height = (window.innerHeight - 120) + 'px'; } else { const r = JSON.parse(win.dataset.normal); win.style.left = r.left; win.style.top = r.top; win.style.width = r.width; win.style.height = r.height; delete win.dataset.normal; } bringToFront(win); }
+        document.querySelectorAll('.window .window-control').forEach(ctrl=>{ 
+            ctrl.addEventListener('click', function(e){ 
+                const action = ctrl.getAttribute('data-action'); 
+                const win = ctrl.closest('.window'); 
+                if(action==='minimize'){ 
+                    win.style.display='none'; 
+                } else if(action==='close'){ 
+                    win.style.display='none'; 
+                    win.classList.add('hidden'); 
+                } else if(action==='maximize'){ 
+                    toggleMaximize(win); 
+                } 
+            }); 
+        });
+        function toggleMaximize(win){ 
+            if(!win.dataset.normal){ 
+                win.dataset.normal = JSON.stringify({ left: win.style.left, top: win.style.top, width: win.style.width, height: win.style.height }); 
+                win.style.left='20px'; 
+                win.style.top='20px'; 
+                win.style.width = (window.innerWidth - 80) + 'px'; 
+                win.style.height = (window.innerHeight - 120) + 'px'; 
+            } else { 
+                const r = JSON.parse(win.dataset.normal); 
+                win.style.left = r.left; 
+                win.style.top = r.top; 
+                win.style.width = r.width; 
+                win.style.height = r.height; 
+                delete win.dataset.normal; 
+            } 
+            bringToFront(win); 
+        }
 
         // Terminal utilities
-        function flashOutput(html){ const wrapper = document.createElement('div'); wrapper.className='output'; wrapper.innerHTML = html; terminalOutput.appendChild(wrapper); terminalOutput.scrollTop = terminalOutput.scrollHeight; }
+        function flashOutput(html){ 
+            const wrapper = document.createElement('div'); 
+            wrapper.className='output'; 
+            wrapper.innerHTML = html; 
+            terminalOutput.appendChild(wrapper); 
+            terminalOutput.scrollTop = terminalOutput.scrollHeight; 
+        }
 
         // Simulated tools (same as previous file but shortened for brevity) - these produce realistic, safe outputs
         function simulateSqlmap(target){ flashOutput(`<div class="output info">sqlmap running on ${escapeHtml(target)} (simulated)...</div>`); setTimeout(()=>{ flashOutput(`<div class="output"><pre>Parameter: id (GET)\nType: boolean-based blind\nDBMS: MySQL\nDatabases: information_schema, users_db, testdb</pre></div>`); },900); }
@@ -390,9 +576,90 @@
         function simulateWireshark(target){ flashOutput(`<div class="output info">wireshark (simulated) summarizing ${escapeHtml(target)}...</div>`); setTimeout(()=>{ flashOutput(`<div class="output"><pre>Top protocols: TLS, HTTP/2\nSample packet: Src ${escapeHtml(target)} -> Dst 10.0.0.5</pre></div>`); },900); }
         function simulateBurp(target){ flashOutput(`<div class="output info">burpsuite scanning ${escapeHtml(target)} (simulated)...</div>`); setTimeout(()=>{ flashOutput(`<div class="output"><pre>[ALERT] Reflected XSS found on /search?q= (High)</pre></div>`); },1000); }
 
+        // CCTV simulation functions
+        function connectCCTV() {
+            const cctvFeed = document.querySelector('.cctv-feed');
+            cctvFeed.innerHTML = `
+                <div class="cctv-placeholder">
+                    <div style="margin-bottom: 10px;">CAMERA FEED CONNECTED</div>
+                    <div>SECURITY CAMERA #C-${Math.floor(Math.random() * 1000)}</div>
+                    <div>LOCATION: BUILDING ${Math.floor(Math.random() * 10)} - FLOOR ${Math.floor(Math.random() * 5)}</div>
+                    <div>STATUS: ACTIVE - ${new Date().toLocaleTimeString()}</div>
+                    <div class="cctv-controls">
+                        <button class="btn small" onclick="disconnectCCTV()">Disconnect</button>
+                        <button class="btn small" onclick="simulateMotionDetection()">Simulate Motion</button>
+                    </div>
+                </div>
+            `;
+            flashOutput(`<div class="output info">Connected to surveillance camera network.</div>`);
+        }
+        
+        function disconnectCCTV() {
+            const cctvFeed = document.querySelector('.cctv-feed');
+            cctvFeed.innerHTML = `
+                <div class="cctv-placeholder">
+                    <div style="margin-bottom: 10px;">SURVEILLANCE FEED OFFLINE</div>
+                    <div class="blink">CONNECTION TERMINATED</div>
+                    <div class="cctv-controls">
+                        <button class="btn small" onclick="connectCCTV()">Reconnect</button>
+                        <button class="btn small btn-ghost" onclick="simulateCCTVError()">Simulate Error</button>
+                    </div>
+                </div>
+            `;
+            flashOutput(`<div class="output info">Disconnected from surveillance camera.</div>`);
+        }
+        
+        function simulateMotionDetection() {
+            flashOutput(`<div class="output warning">MOTION DETECTED: Camera #C-${Math.floor(Math.random() * 1000)} - Sector ${Math.floor(Math.random() * 8)}</div>`);
+            
+            const cctvFeed = document.querySelector('.cctv-feed');
+            cctvFeed.innerHTML = `
+                <div class="cctv-placeholder">
+                    <div style="margin-bottom: 10px; color: #ff5555;">ALERT: MOTION DETECTED</div>
+                    <div>CAMERA: #C-${Math.floor(Math.random() * 1000)}</div>
+                    <div>LOCATION: SECTOR ${Math.floor(Math.random() * 8)}</div>
+                    <div>TIMESTAMP: ${new Date().toLocaleTimeString()}</div>
+                    <div class="cctv-controls">
+                        <button class="btn small" onclick="connectCCTV()">Clear Alert</button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function simulateCCTVError() {
+            const errors = [
+                "NETWORK CONNECTION FAILURE",
+                "CAMERA OFFLINE",
+                "AUTHENTICATION ERROR",
+                "BANDWIDTH LIMIT EXCEEDED",
+                "ENCRYPTION PROTOCOL MISMATCH"
+            ];
+            const error = errors[Math.floor(Math.random() * errors.length)];
+            
+            const cctvFeed = document.querySelector('.cctv-feed');
+            cctvFeed.innerHTML = `
+                <div class="cctv-placeholder">
+                    <div style="margin-bottom: 10px; color: #ff5555;">SYSTEM ERROR</div>
+                    <div>${error}</div>
+                    <div>ERR_CODE: 0x${Math.floor(Math.random() * 10000).toString(16).toUpperCase()}</div>
+                    <div class="cctv-controls">
+                        <button class="btn small" onclick="connectCCTV()">Reconnect</button>
+                    </div>
+                </div>
+            `;
+            flashOutput(`<div class="output error">Surveillance system error: ${error}</div>`);
+        }
+
         // General run command
         function escapeHtml(unsafe){ return String(unsafe).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
-        function runCommand(raw){ const text = String(raw||'').trim(); if(!text) return; flashOutput(`<div class="output info"><pre>root@cybersimulator:~# ${escapeHtml(text)}</pre></div>`); const parts = text.split(' ').filter(Boolean); const cmd = parts[0].toLowerCase(); const args = parts.slice(1);
+        function runCommand(raw){ 
+            const text = String(raw||'').trim(); 
+            if(!text) return; 
+            flashOutput(`<div class="output info"><pre>root@cybersimulator:~# ${escapeHtml(text)}</pre></div>`); 
+            const parts = text.split(' ').filter(Boolean); 
+            const cmd = parts[0].toLowerCase(); 
+            const args = parts.slice(1);
+            
             if(cmd==='help'){ handleHelp(args); }
             else if(cmd==='clear'){ terminalOutput.innerHTML=''; }
             else if(cmd==='nmap'){ handleNmap(args[0]||'127.0.0.1'); }
@@ -404,10 +671,23 @@
             else if(cmd==='john'){ simulateJohn(args.join(' ')||'hashes.txt'); }
             else if(cmd==='wireshark'){ simulateWireshark(args[0]||'192.168.1.10'); }
             else if(cmd==='burpsuite' || cmd==='burp'){ simulateBurp(args[0]||'http://example.com'); }
+            else if(cmd==='surveillance' || cmd==='cctv') { 
+                flashOutput(`<div class="output info">Surveillance system accessed. Type 'help surveillance' for info.</div>`);
+                openApp('cctv');
+            }
             else { flashOutput(`<div class="output error">Command not found: ${escapeHtml(cmd)}. Type 'help' to list commands.</div>`); }
         }
 
-        function handleHelp(args){ if(!args.length){ const list = Object.keys(explanations).map(k=>`<li>${k} - ${escapeHtml(explanations[k].title||'')}</li>`).join(''); flashOutput(`<div class="output info"><strong>Available commands:</strong><ul>${list}</ul></div>`);} else { const k=args[0].toLowerCase(); if(explanations[k]) flashOutput(`<div class="output info">${explanations[k].content}</div>`); else flashOutput(`<div class="output error">No help available for ${escapeHtml(k)}</div>`); } }
+        function handleHelp(args){ 
+            if(!args.length){ 
+                const list = Object.keys(explanations).map(k=>`<li>${k} - ${escapeHtml(explanations[k].title||'')}</li>`).join(''); 
+                flashOutput(`<div class="output info"><strong>Available commands:</strong><ul>${list}</ul></div>`);
+            } else { 
+                const k=args[0].toLowerCase(); 
+                if(explanations[k]) flashOutput(`<div class="output info">${explanations[k].content}</div>`); 
+                else flashOutput(`<div class="output error">No help available for ${escapeHtml(k)}</div>`); 
+            } 
+        }
 
         function handleNmap(target){ flashOutput(`<div class="output info">Starting Nmap scan on ${escapeHtml(target)} (simulated)...</div>`); setTimeout(()=>{ const simulated = `\n<pre>Starting Nmap 7.80 ( https://nmap.org ) at ${new Date().toLocaleString()}\nNmap scan report for ${escapeHtml(target)}\nHost is up (0.0020s latency).\nNot shown: 996 filtered ports\nPORT     STATE SERVICE\n22/tcp   open  ssh\n80/tcp   open  http\n139/tcp  open  netbios-ssn\n445/tcp  open  microsoft-ds\nNmap done: 1 IP address (1 host up) scanned in 0.34 seconds\n</pre>`; flashOutput(`<div class="output">${simulated}</div>`); },900); }
         function handlePing(target){ const count=4; flashOutput(`<div class="output info">Pinging ${escapeHtml(target)} with ${count} packets (simulated)...</div>`); const replies=[]; for(let i=0;i<count;i++){ const latency=(Math.random()*40+8).toFixed(2); replies.push(`Reply from ${target}: bytes=32 time=${latency}ms TTL=54`); } setTimeout(()=>{ const times=replies.map(r=>parseFloat(r.match(/time=(\d+(\.\d+)?)/)[1])); flashOutput(`<div class="output"><pre>${replies.join('\n')}\n\nPing statistics for ${escapeHtml(target)}:\n Packets: Sent = ${count}, Received = ${count}, Lost = 0 (0% loss),\nApproximate round trip times in milli-seconds:\n Minimum = ${Math.min(...times).toFixed(2)}ms, Maximum = ${Math.max(...times).toFixed(2)}ms, Average = ${(times.reduce((a,b)=>a+b,0)/times.length).toFixed(2)}ms</pre></div>`); },700); }
@@ -427,11 +707,40 @@
         updateClock(); setInterval(updateClock,1000);
 
         // Make windows draggable (supports multiple windows)
-        (function makeDraggableAll(){ const windows = document.querySelectorAll('.window'); windows.forEach(w=>{ const header = w.querySelector('.window-header'); let isDown=false, offset={x:0,y:0}; header.addEventListener('mousedown',(e)=>{ isDown=true; bringToFront(w); const rect = w.getBoundingClientRect(); offset.x = e.clientX - rect.left; offset.y = e.clientY - rect.top; w.style.position='absolute'; w.style.transition='none'; }); document.addEventListener('mousemove',(e)=>{ if(!isDown) return; w.style.left = (e.clientX - offset.x) + 'px'; w.style.top = (e.clientY - offset.y) + 'px'; }); document.addEventListener('mouseup',()=>{ isDown=false; }); }); })();
+        (function makeDraggableAll(){ 
+            const windows = document.querySelectorAll('.window'); 
+            windows.forEach(w=>{ 
+                const header = w.querySelector('.window-header'); 
+                let isDown=false, offset={x:0,y:0}; 
+                header.addEventListener('mousedown',(e)=>{ 
+                    isDown=true; 
+                    bringToFront(w); 
+                    const rect = w.getBoundingClientRect(); 
+                    offset.x = e.clientX - rect.left; 
+                    offset.y = e.clientY - rect.top; 
+                    w.style.position='absolute'; 
+                    w.style.transition='none'; 
+                }); 
+                document.addEventListener('mousemove',(e)=>{ 
+                    if(!isDown) return; 
+                    w.style.left = (e.clientX - offset.x) + 'px'; 
+                    w.style.top = (e.clientY - offset.y) + 'px'; 
+                }); 
+                document.addEventListener('mouseup',()=>{ isDown=false; }); 
+            }); 
+        })();
 
         // Init
-        populateStartTools(); renderFileTree(); commandInput.focus(); setTimeout(()=>flashOutput(`<div class="output info">Tip: open Start → Tools to run simulated commands or click the Tools desktop icon.</div>`),900);
+        populateStartTools(); 
+        renderFileTree(); 
+        commandInput.focus(); 
+        setTimeout(()=>flashOutput(`<div class="output info">Tip: open Start → Tools to run simulated commands or click the Tools desktop icon.</div>`),900);
 
+        // Expose functions to global scope
+        window.connectCCTV = connectCCTV;
+        window.disconnectCCTV = disconnectCCTV;
+        window.simulateMotionDetection = simulateMotionDetection;
+        window.simulateCCTVError = simulateCCTVError;
     </script>
 </body>
 </html>
